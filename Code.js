@@ -122,7 +122,9 @@ function dailyTweet() {
       d.setDate(d.getDate() + 1);
       var menuNext = getMenusFromDate(d, false);
       if( menuNext ){
-        text += "次回(" + Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") + ")の給食は\n【" + menuNext.slice(1).join(",") + "】の予定です。"
+        if(Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") === Utilities.formatDate(d, 'JST', "MM月dd日")){ text += "明日"; }
+        else { text += "次回(" + Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") + ")"; }
+        text += "の給食は\n【" + menuNext.slice(1).join("、") + "】の予定です。"
       }
       Logger.log(text);
       Logger.log(text.length);
