@@ -1,4 +1,4 @@
-var twitter = TwitterWebService.getInstance(TWITTER_ID,TWITTER_LOGIN);
+var twitter = getTwitter(); //TwitterWebService.getInstance(TWITTER_ID,TWITTER_LOGIN);
 var properties = PropertiesService.getScriptProperties();
 
 //  -------------- TWITTER SETTINGS ------------------
@@ -54,6 +54,7 @@ function sendMail(address, title, message) {
 }
 
 function tweet(text) {
+  var twitter = getTwitter();
   var service = twitter.getService();
   var response = service.fetch('https://api.twitter.com/1.1/statuses/update.json', {
     method: 'post',
