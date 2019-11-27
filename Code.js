@@ -105,7 +105,7 @@ function getMenusFromDate(date, exact_date) {
       var mJ = menuJ[i].trim();
       if(mE == "" && mJ == ""){ /* do nothing */ }
       else if(mJ == mE){ menus.push(mJ); }
-      else { menus.push("【中学】" + mJ + "/【小学】"+mE); }
+      else { menus.push(mJ + "（中学）/" + mE + "（小学）"); }
     }
     return menus
   }
@@ -118,7 +118,7 @@ function dailyTweet() {
     var d = new Date();
     var menuToday = getMenusFromDate(d, true);
     if(menuToday){ 
-      text = "本日（" + Utilities.formatDate(menuToday[0], 'JST', "MM月dd日") +  "）の給食メニューです。\n" + menuToday.slice(1).join("\n") + "\n\n";
+      text = "本日（" + Utilities.formatDate(menuToday[0], 'JST', "MM月dd日") +  "）の給食メニューです。\n▫" + menuToday.slice(1).join("\n▫") + "\n\n";
       d.setDate(d.getDate() + 1);
       var menuNext = getMenusFromDate(d, false);
       if( menuNext ){
