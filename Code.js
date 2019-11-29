@@ -87,7 +87,7 @@ function getMenusFromDate(date, exact_date) {
     if(!file){ return null; }
     var sheetE = SpreadsheetApp.openById(file.getId());
     var data = sheetE.getSheets()[0].getDataRange().getValues();
-    var today = Utilities.formatDate(d, 'JSkjT', 'yyMMdd');
+    var today = Utilities.formatDate(d, 'JST', 'yyMMdd');
     
     for(var i=1; i<data.length; i++) {
       var r = data[i].filter(function(s){ return s != ''; });
