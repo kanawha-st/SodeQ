@@ -73,24 +73,35 @@ function test() {
 
 function getMenusFromDate(date, exact_date) {
   function F(d){ return Utilities.formatDate(d, 'JST', 'yyMM'); }
+  function D(r){
+    if(r.slice(3).every(function(s){ return s == ""; })){ return null; }
+    else { return [r[1]].concat(r.slice(3)); }
+  }
+  function disp(r, s){
+    function apnd(_s){ return _s + s; }
+    return [r[0]].concat(r.slice(1).map(apnd));
+  }
+  
   function getMenu(d, EorJ) {
     var file = DriveApp.getFolderById(DATA_FOLDER_ID).getFilesByName(F(d) + EorJ).next();
     if(!file){ return null; }
     var sheetE = SpreadsheetApp.openById(file.getId());
     var data = sheetE.getSheets()[0].getDataRange().getValues();
-    var today = Utilities.formatDate(d, 'JST', 'yyMMdd');
+    var today = Utilities.formatDate(d, 'JSkjT', 'yyMMdd');
     
     for(var i=1; i<data.length; i++) {
-      var r = data[i];
+      var r = data[i].filter(function(s){ return s != ''; });
+      if(r.length < 2){ break; }
       var d = Utilities.formatDate(new Date(r[1]), 'JST', 'yyMMdd');
       if(today == d) {
-        return [r[1]].concat(r.slice(3));
+        return D(r);
       }
-      else if(today < d) { return exact_date ? null : [r[1]].concat(r.slice(3)); }
+      else if(today < d) { 
+        return exact_date ? null : D(r); }
     }
     if(!exact_date){ // NOT IN THIS MONTH
-      date.setMonth(d.getMonth() + 1, 1);
-      return getMenu(date, filename)
+      date.setMonth(date.getMonth() + 1, 1);
+      return getMenu(date, EorJ)
     }
     return null;
   }
@@ -109,8 +120,10 @@ function getMenusFromDate(date, exact_date) {
     }
     return menus
   }
-  return menuE || menuJ;
+  if(menuE){ return disp(menuE, "(小学校)"); }
+  return disp(menuE, "(中学校)");
 }
+  
 
 function dailyTweet() {
   var text = "";
@@ -120,7 +133,7 @@ function dailyTweet() {
     if(menuToday){ 
       text = "本日（" + Utilities.formatDate(menuToday[0], 'JST', "MM月dd日") +  "）の給食メニューです。\n▫" + menuToday.slice(1).join("\n▫") + "\n\n";
       d.setDate(d.getDate() + 1);
-      var menuNext = getMenusFromDate(d, false);
+      var menuNext = getMenusFromDate(new Date(d), false);
       if( menuNext ){
         if(Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") === Utilities.formatDate(d, 'JST', "MM月dd日")){ text += "明日"; }
         else { text += "次回(" + Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") + ")"; }
