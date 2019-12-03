@@ -1,6 +1,5 @@
 var twitter = getTwitter(); //TwitterWebService.getInstance(TWITTER_ID,TWITTER_LOGIN);
-var properties = PropertiesService.getScriptProperties();
-
+var properties = PropertiesService.getScriptProperties(); 
 //  -------------- TWITTER SETTINGS ------------------
 // 認証
 function authorize() {
@@ -56,6 +55,10 @@ function sendMail(address, title, message) {
 function tweet(text) {
   var twitter = getTwitter();
   var service = twitter.getService();
+  if(text.length>140){
+    text = text.substring(0, 139) + '…';
+  }
+  
   var response = service.fetch('https://api.twitter.com/1.1/statuses/update.json', {
     method: 'post',
     payload: {status: text}
@@ -116,12 +119,12 @@ function getMenusFromDate(date, exact_date) {
       var mJ = menuJ[i].trim();
       if(mE == "" && mJ == ""){ /* do nothing */ }
       else if(mJ == mE){ menus.push(mJ); }
-      else { menus.push(mJ + "（中学）/" + mE + "（小学）"); }
+      else { menus.push(mJ + "㊥/" + mE + "㋛"); }
     }
     return menus
   }
-  if(menuE){ return disp(menuE, "(小学校)"); }
-  return disp(menuE, "(中学校)");
+  if(menuE){ return disp(menuE, "㋛"); }
+  return disp(menuE, "㊥");
 }
   
 
