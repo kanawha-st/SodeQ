@@ -94,13 +94,14 @@ function getMenusFromDate(date, exact_date) {
     
     for(var i=1; i<data.length; i++) {
       var r = data[i].filter(function(s){ return s != ''; });
-      if(r.length < 2){ break; }
+      if(r.length <= 3){ continue; }
       var d = Utilities.formatDate(new Date(r[1]), 'JST', 'yyMMdd');
       if(today == d) {
         return D(r);
       }
       else if(today < d) { 
-        return exact_date ? null : D(r); }
+        return exact_date ? null : D(r);
+      }
     }
     if(!exact_date){ // NOT IN THIS MONTH
       date.setMonth(date.getMonth() + 1, 1);
