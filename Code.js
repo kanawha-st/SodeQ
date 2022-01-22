@@ -1,11 +1,17 @@
-var twitter = getTwitter(); //TwitterWebService.getInstance(TWITTER_ID,TWITTER_LOGIN);
 var properties = PropertiesService.getScriptProperties(); 
+var twitter = null;
 //  -------------- TWITTER SETTINGS ------------------
 // 認証
 function authorize() {
-  twitter.authorize();
+  if(!twitter){ twitter = getTwitter();}
+  const authorizationUrl = twitter.authorize();
+  Logger.log(authorizationUrl);
 }
 
+function logCallbackUrl() {
+  twitter = getTwitter();
+  Logger.log(twitter.getService().getCallbackUrl());
+}
 // 認証解除
 function reset() {
   twitter.reset();
@@ -13,7 +19,7 @@ function reset() {
 
 // 認証後のコールバック
 function authCallback(request) {
-  return twitter.authCallback(request);
+  return getTwitter().authCallback(request);
 }
 //  -------------- END ------------------
 
@@ -47,7 +53,7 @@ function sendMail(address, title, message) {
     message,
     {
       from: Session.getActiveUser().getEmail(),
-      name: 'ツイッターシステム'
+      name: 'SodeQツイッターシステム'
     }
   );
 }
@@ -69,16 +75,49 @@ function test() {
 //  var saved_file = saveAsSpreadSheet("SodeQテスト", DOWNLOAD_URL);
 //  processSpreadSheet(saved_file);
 //  Logger.log(saved_file);
-  tweet("テストです");
+//  tweet("テストです");
+//  Logger.log(getMenusFromDate(new Date('2021-04-15'), true));
+//  Logger.log(bentoDays());
+    Logger.log(getYomi("茎わかめサラダ和風味"))
 }
 
+function moveToLast(ary, words) {
+  words.forEach( w => {
+    if(ary.indexOf(w) >= 0){
+      ary = ary.filter(a => a!==w).concat([w]);
+    }
+  });
+  return ary; 
+}
+
+// https://labs.goo.ne.jp/api/jp/hiragana-translation/
+function getYomi(str) {
+  try {
+    var endpoint = "https://labs.goo.ne.jp/api/hiragana";
+    var payload = {
+      "app_id": GOOAPIKEY,
+      "sentence": str,
+      "output_type": "hiragana"
+    };
+    var options = {
+      "method": "post",
+      "payload": payload
+    };
+
+    var response = UrlFetchApp.fetch(endpoint, options);
+    var response_json = JSON.parse(response.getContentText());
+    return response_json.converted.replace(/ /g,'');
+  } catch(e) {
+     return str;
+  }
+}
 
 
 function getMenusFromDate(date, exact_date) {
   function F(d){ return Utilities.formatDate(d, 'JST', 'yyMM'); }
   function D(r){
     if(r.slice(3).every(function(s){ return s == ""; })){ return null; }
-    else { return [r[1]].concat(r.slice(3)); }
+    else{return [r[1]].concat(r.slice(3));}
   }
   function disp(r, s){
     function apnd(_s){ return _s + s; }
@@ -86,15 +125,16 @@ function getMenusFromDate(date, exact_date) {
   }
   
   function getMenu(d, EorJ) {
-    var file = DriveApp.getFolderById(DATA_FOLDER_ID).getFilesByName(F(d) + EorJ).next();
-    if(!file){ return null; }
+    var file = null;
+    try { file = DriveApp.getFolderById(DATA_FOLDER_ID).getFilesByName(F(d) + EorJ).next(); }
+    catch(e) { return null; }
     var sheetE = SpreadsheetApp.openById(file.getId());
     var data = sheetE.getSheets()[0].getDataRange().getValues();
     var today = Utilities.formatDate(d, 'JST', 'yyMMdd');
     
     for(var i=1; i<data.length; i++) {
       var r = data[i].filter(function(s){ return s != ''; });
-      if(r.length <= 3){ continue; }
+      if(r.length <= 4){ continue; } // Too few menu
       var d = Utilities.formatDate(new Date(r[1]), 'JST', 'yyMMdd');
       if(today == d) {
         return D(r);
@@ -116,32 +156,50 @@ function getMenusFromDate(date, exact_date) {
   else if(menuE && menuJ){ //BOTH VALID
     var menus = [menuE[0]];
     for(var i = 1; i < menuJ.length; i++) {
-      var mE = menuE[i].trim();
       var mJ = menuJ[i].trim();
+      if(!menuE[i]){ menus.push(mJ + "㊥"); continue}
+      var mE = menuE[i].trim();
       if(mE == "" && mJ == ""){ /* do nothing */ }
-      else if(mJ == mE){ menus.push(mJ); }
+      else if(mJ === mE || getYomi(mJ) === getYomi(mE)){ menus.push(mJ); }
       else { menus.push(mJ + "㊥/" + mE + "㋛"); }
     }
-    return menus
+    return moveToLast(menus,['牛乳','ごはん'])
   }
-  if(menuE){ return disp(menuE, "㋛"); }
-  return disp(menuE, "㊥");
+  if(menuE){ return disp(moveToLast(menuE, ['牛乳','ごはん']), "㋛"); }
+  return disp(moveToLast(menuJ, ['牛乳','ごはん']), "㊥");
 }
   
 
 function dailyTweet() {
   var text = "";
+  let bentoDays = getBentoDays();
+
+  // check yomi
+  if(getYomi('テスト中')!=='てすとちゅう'){
+    sendMail(ADMIN_EMAIL, "【SodeQ】ワーニング", 'ひらがな読み機能でエラーが発生しました。');
+  }
+
   try {
     var d = new Date();
-    var menuToday = getMenusFromDate(d, true);
-    if(menuToday){ 
-      text = "本日（" + Utilities.formatDate(menuToday[0], 'JST', "MM月dd日") +  "）の給食メニューです。\n▫" + menuToday.slice(1).join("\n▫") + "\n\n";
+    if(bentoDays[Utilities.formatDate(d, "JST", 'yyyy-MM-dd')]) {
+      text = "🍱🍱🍱今日はお弁当の日!!🍱🍱🍱\n\n"
+    } else {
+      var menuToday = getMenusFromDate(d, true);
+      if(menuToday) {
+        text = "本日のメニュー\n▫" + menuToday.slice(1).join("\n▫") + "\n\n";
+      }
+    }
+    if(text.length > 0){ 
       d.setDate(d.getDate() + 1);
-      var menuNext = getMenusFromDate(new Date(d), false);
-      if( menuNext ){
-        if(Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") === Utilities.formatDate(d, 'JST', "MM月dd日")){ text += "明日"; }
-        else { text += "次回(" + Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") + ")"; }
-        text += "の給食は\n【" + menuNext.slice(1).join("、") + "】の予定です。"
+      if(bentoDays[Utilities.formatDate(d, "JST", 'yyyy-MM-dd')]){
+        text += "🍱🍱🍱明日はお弁当!!🍱🍱🍱";
+      } else {
+        var menuNext = getMenusFromDate(new Date(d), false);
+          if( menuNext ){
+            if(Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") === Utilities.formatDate(d, 'JST', "MM月dd日")){ text += "明日"; }
+            else { text += "次回(" + Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") + ")"; }
+            text += "は\n【" + menuNext.slice(1).join("、") + "】の予定です。"
+          }
       }
       Logger.log(text);
       Logger.log(text.length);
@@ -152,6 +210,20 @@ function dailyTweet() {
   }
 }
 
+function forceTweet() {
+  var text = "あけましておめでとうございます。今年もSodeQをよろしくお願いします。\n"
+  var d = new Date();
+  var menuNext = getMenusFromDate(new Date(d), false);
+  if( menuNext ){
+    if(Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") === Utilities.formatDate(d, 'JST', "MM月dd日")){ text += "明日"; }
+    else { text += "次回(" + Utilities.formatDate(menuNext[0], 'JST', "MM月dd日") + ")"; }
+    text += "の給食は\n【" + menuNext.slice(1).join("、") + "】の予定です。"
+  }
+  Logger.log(text);
+  Logger.log(text.length);
+  tweet(text);
+}
+
 function getExcelFiles() {
   try {
     var src = UrlFetchApp.fetch(DOWNLOAD_URL).getContentText();
@@ -160,6 +232,7 @@ function getExcelFiles() {
     
     divs.map(function(s) {
       var jtitle = Parser.data(s).from('.xlsx">').to('  [').build();
+      for(var i=0; i<10; i++){ jtitle = jtitle.replace("０１２３４５６７８９".charAt(i), String(i)); }
       var year = (jtitle.indexOf("元年") > -1) ? 1 : parseInt(/令和(\d+)年/.exec(jtitle)[1]);
       year += 18;
       var month = parseInt(/(\d+)月/.exec(jtitle)[1]);
@@ -177,4 +250,33 @@ function getExcelFiles() {
   } catch(e) {
     sendMail(ADMIN_EMAIL, "【SodeQ】エラー発生", 'ファイルダウンロード機能でエラーが発生しました。\n' + e);    
   }
+}
+
+function getBentoDays() {
+    let sheet = SpreadsheetApp.openById('1bg0zP4HbEqQZmwavYm_ZJ1UzUdjEQwk5IMeCzNRvCVQ').getSheetByName('弁当日');
+    let rows = sheet.getDataRange().getValues();
+    let ret = {};
+    rows.forEach(r => {ret[Utilities.formatDate(r[0],"JST","yyyy-MM-dd")]=true;});
+    return ret;
+}
+
+function bentoCheck() {
+  try {
+    let sheet = SpreadsheetApp.openById('1bg0zP4HbEqQZmwavYm_ZJ1UzUdjEQwk5IMeCzNRvCVQ').getSheetByName('弁当日');
+    let rows = sheet.getDataRange().getValues();
+    let today = new Date();
+    let nextweek = new Date(); nextweek.setDate(nextweek.getDate() + 7);
+    rows.some(r => {
+      let d = new Date(r[0]);
+      if( today < d && d < nextweek){
+        let text = `📢📢来週の${Utilities.formatDate(d, "JST", "M月d日")}は『お弁当の日』です。\nお買い物は済んでますか？\nフォロワーの袖ケ浦のお父さん・お母さん達にも届くようリツイートを！！📢📢`;
+        Logger.log(text);
+        tweet(text)
+        return true;
+      }
+    });
+  } catch(e) {
+    sendMail(ADMIN_EMAIL, "【SodeQ】エラー発生", '弁当日ツイート機能でエラーが発生しました。\n' + e);
+  }
+
 }
