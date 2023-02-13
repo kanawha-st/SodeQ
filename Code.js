@@ -9,17 +9,19 @@ function authorize() {
 }
 
 function logCallbackUrl() {
-  twitter = getTwitter();
+  if(!twitter){ twitter = getTwitter();}
   Logger.log(twitter.getService().getCallbackUrl());
 }
 // 認証解除
 function reset() {
+  if(!twitter){ twitter = getTwitter();}
   twitter.reset();
 }
 
 // 認証後のコールバック
 function authCallback(request) {
-  return getTwitter().authCallback(request);
+  if(!twitter){ twitter = getTwitter();}
+  return twitter.authCallback(request);
 }
 //  -------------- END ------------------
 
@@ -59,26 +61,37 @@ function sendMail(address, title, message) {
 }
 
 function tweet(text) {
-  var twitter = getTwitter();
+  if(!twitter){ twitter = getTwitter();}
   var service = twitter.getService();
+  if(!service.hasAccess()){
+    throw "エラー:Twitter未認証"
+  }
+
   if(text.length>140){
     text = text.substring(0, 139) + '…';
   }
   
-  var response = service.fetch('https://api.twitter.com/1.1/statuses/update.json', {
+  var response = service.fetch(`https://api.twitter.com/2/tweets`, {
     method: 'post',
-    payload: {status: text}
+    contentType: 'application/json',
+    headers: {
+       Authorization: `Bearer ${TWTTER_API_BEARER_TOKEN}`
+    },
+    muteHttpExceptions: true,
+    payload: JSON.stringify({text: text})
   });
 }
 
 function test() {
+  //authorize();
+  //reset();
 //  var saved_file = saveAsSpreadSheet("SodeQテスト", DOWNLOAD_URL);
 //  processSpreadSheet(saved_file);
 //  Logger.log(saved_file);
-//  tweet("テストです");
+  tweet("テストです");
 //  Logger.log(getMenusFromDate(new Date('2021-04-15'), true));
 //  Logger.log(bentoDays());
-    Logger.log(getYomi("茎わかめサラダ和風味"))
+//  Logger.log(getYomi("茎わかめサラダ和風味"))
 }
 
 function moveToLast(ary, words) {
