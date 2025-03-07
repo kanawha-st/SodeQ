@@ -80,15 +80,22 @@ function tweet(text) {
     muteHttpExceptions: true,
     payload: JSON.stringify({text: text})
   });
+  if(response.getResponseCode()>300){
+    Logger.log(response.getResponseCode());
+    Logger.log(response.getContentText());
+    throw "twitter error\n" + response.getContentText();
+  }
 }
 
 function test() {
+  //Logger.log(getYomi("テスト中"))
+  Logger.log(getMenusFromDate(new Date('2025-03-10'), false));
   //authorize();
   //reset();
 //  var saved_file = saveAsSpreadSheet("SodeQテスト", DOWNLOAD_URL);
 //  processSpreadSheet(saved_file);
 //  Logger.log(saved_file);
-  tweet("テストです");
+//  tweet("テストです");
 //  Logger.log(getMenusFromDate(new Date('2021-04-15'), true));
 //  Logger.log(bentoDays());
 //  Logger.log(getYomi("茎わかめサラダ和風味"))
@@ -103,28 +110,38 @@ function moveToLast(ary, words) {
   return ary; 
 }
 
-// https://labs.goo.ne.jp/api/jp/hiragana-translation/
-function getYomi(str) {
+// Yahoo Version
+function getYomi(text) { 
+  var endpoint = "https://jlp.yahooapis.jp/MAService/V2/parse?appid=" + YAHOO_API_ID;
+  
+  // Prepare the request parameters
+  
+  var payload = {
+    "id": Utilities.formatDate(new Date(), 'JST', 'yyyy-MM-dd'),
+    "jsonrpc": "2.0",
+    "method": "jlp.furiganaservice.furigana",
+    "params": {
+      "q": text,
+    }
+  };
+  var headers = {
+        "Content-Type": "application/json",
+  };
   try {
-    var endpoint = "https://labs.goo.ne.jp/api/hiragana";
-    var payload = {
-      "app_id": GOOAPIKEY,
-      "sentence": str,
-      "output_type": "hiragana"
-    };
-    var options = {
-      "method": "post",
-      "payload": payload
-    };
-
-    var response = UrlFetchApp.fetch(endpoint, options);
-    var response_json = JSON.parse(response.getContentText());
-    return response_json.converted.replace(/ /g,'');
+    var response = UrlFetchApp.fetch(endpoint, {
+      'method': 'post',
+      'headers': headers,
+      'payload': JSON.stringify(payload)
+    });
+    var response_json = JSON.parse(response.getContentText())
+    return response_json['result']['word'].reduce((x, y) => x + y['furigana'], "")
   } catch(e) {
-     return str;
+    Logger.log("Yahooテキスト解析エラー")
+    Logger.log(e);
+    return text;
   }
-}
 
+}
 
 function getMenusFromDate(date, exact_date) {
   function F(d){ return Utilities.formatDate(d, 'JST', 'yyMM'); }
@@ -167,16 +184,20 @@ function getMenusFromDate(date, exact_date) {
   var menuJ = getMenu(date, "J");
   if(!menuE && !menuJ){ return null; } // BOTH INVALID/NO LUNCH
   else if(menuE && menuJ){ //BOTH VALID
-    var menus = [menuE[0]];
-    for(var i = 1; i < menuJ.length; i++) {
-      var mJ = menuJ[i].trim();
-      if(!menuE[i]){ menus.push(mJ + "㊥"); continue}
-      var mE = menuE[i].trim();
-      if(mE == "" && mJ == ""){ /* do nothing */ }
-      else if(mJ === mE || getYomi(mJ) === getYomi(mE)){ menus.push(mJ); }
-      else { menus.push(mJ + "㊥/" + mE + "㋛"); }
+    if(menuE[0].getTime() == menuJ[0].getTime()){
+      var menus = [menuE[0]];
+      for(var i = 1; i < menuJ.length; i++) {
+        var mJ = menuJ[i].trim();
+        if(!menuE[i]){ menus.push(mJ + "㊥"); continue}
+        var mE = menuE[i].trim();
+        if(mE == "" && mJ == ""){ /* do nothing */ }
+        else if(mJ === mE || getYomi(mJ) === getYomi(mE)){ menus.push(mJ); }
+        else { menus.push(mJ + "㊥/" + mE + "㋛"); }
+      }
+      return moveToLast(menus,['牛乳','ごはん'])
     }
-    return moveToLast(menus,['牛乳','ごはん'])
+    else if(menuE[0].getTime() < menuJ[0].getTime()){return disp(moveToLast(menuE, ['牛乳','ごはん']), "㋛"); }
+    else { return disp(moveToLast(menuJ, ['牛乳','ごはん']), "㊥");} 
   }
   if(menuE){ return disp(moveToLast(menuE, ['牛乳','ごはん']), "㋛"); }
   return disp(moveToLast(menuJ, ['牛乳','ごはん']), "㊥");
@@ -220,6 +241,7 @@ function dailyTweet() {
     }
   } catch(e) {
     sendMail(ADMIN_EMAIL, "【SodeQ】エラー発生", 'ツイート機能でエラーが発生しました。\n' + e);
+    throw e;
   }
 }
 
