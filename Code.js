@@ -1,28 +1,42 @@
 var properties = PropertiesService.getScriptProperties(); 
 var twitter = null;
 //  -------------- TWITTER SETTINGS ------------------
-// 認証
-function authorize() {
-  if(!twitter){ twitter = getTwitter();}
-  const authorizationUrl = twitter.authorize();
-  Logger.log(authorizationUrl);
+function getTwitterService() {
+  var clientId = TWIITER_CLIENT_ID;
+  var clientSecret = TWITTER_CLIENT_SECRET;
+  var redirectUri = 'https://script.google.com/macros/d/1ATf8DeIMF7GN9PeBR56qoGH6bQRfMfst42CuD9V_cPgRbQo_jhnn9Jnh/usercallback';
+  var scope = 'tweet.read,tweet.write';
+  
+  var service = OAuth2.createService('twitter')
+    .setAuthorizationBaseUrl('https://twitter.com/i/oauth2/authorize')
+    .setTokenUrl('https://api.twitter.com/2/oauth2/token')
+    .setClientId(clientId)
+    .setClientSecret(clientSecret)
+    .setCallbackFunction('authCallback')
+    .setPropertyStore(PropertiesService.getUserProperties())
+    .setScope(scope)
+    .setRedirectUri(redirectUri)
+    .setGrantType('authorization_code');
+  
+  return service;
 }
 
-function logCallbackUrl() {
-  if(!twitter){ twitter = getTwitter();}
-  Logger.log(twitter.getService().getCallbackUrl());
-}
-// 認証解除
-function reset() {
-  if(!twitter){ twitter = getTwitter();}
-  twitter.reset();
-}
-
-// 認証後のコールバック
 function authCallback(request) {
-  if(!twitter){ twitter = getTwitter();}
-  return twitter.authCallback(request);
+  var service = getTwitterService();
+  var authorized = service.handleCallback(request);
+  if (authorized) {
+    return HtmlService.createHtmlOutput('Success! You can now post tweets.');
+  } else {
+    return HtmlService.createHtmlOutput('Authentication failed.');
+  }
 }
+function doGet() {
+  var service = getTwitterService();
+  var authorizationUrl = service.getAuthorizationUrl();
+  var html = HtmlService.createHtmlOutput('<a href="' + authorizationUrl + '">Authorize</a>');
+  return html;
+}
+
 //  -------------- END ------------------
 
 // following program is taken from https://qiita.com/Panda_Program/items/31f331fd4c2f3cfab333=====
@@ -61,41 +75,29 @@ function sendMail(address, title, message) {
 }
 
 function tweet(text) {
-  if(!twitter){ twitter = getTwitter();}
-  var service = twitter.getService();
-  if(!service.hasAccess()){
-    throw "エラー:Twitter未認証"
-  }
-
   if(text.length>140){
     text = text.substring(0, 139) + '…';
   }
-  
-  var response = service.fetch(`https://api.twitter.com/2/tweets`, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: {
-       Authorization: `Bearer ${TWTTER_API_BEARER_TOKEN}`
-    },
-    muteHttpExceptions: true,
-    payload: JSON.stringify({text: text})
-  });
-  if(response.getResponseCode()>300){
+  let service = newTwitterV2();
+  var response = service.postMessage(text);
+  Logger.log(response);
+  /* if(response.getResponseCode()>300){
     Logger.log(response.getResponseCode());
     Logger.log(response.getContentText());
     throw "twitter error\n" + response.getContentText();
-  }
+  } */
+  Logger.log(text);
 }
 
 function test() {
   //Logger.log(getYomi("テスト中"))
-  Logger.log(getMenusFromDate(new Date('2025-03-10'), false));
+  //Logger.log(getMenusFromDate(new Date('2025-03-10'), false));
   //authorize();
   //reset();
 //  var saved_file = saveAsSpreadSheet("SodeQテスト", DOWNLOAD_URL);
 //  processSpreadSheet(saved_file);
 //  Logger.log(saved_file);
-//  tweet("テストです");
+  tweet("テストです");
 //  Logger.log(getMenusFromDate(new Date('2021-04-15'), true));
 //  Logger.log(bentoDays());
 //  Logger.log(getYomi("茎わかめサラダ和風味"))
@@ -294,6 +296,7 @@ function getBentoDays() {
     rows.forEach(r => {ret[Utilities.formatDate(r[0],"JST","yyyy-MM-dd")]=true;});
     return ret;
 }
+
 
 function bentoCheck() {
   try {
